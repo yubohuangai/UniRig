@@ -27,6 +27,7 @@ mesh_encoder:
   enable_qknorm: True
   layer_norm: False
   res_linear: True
+  enable_flash: False  # required for pre-Ampere GPUs (e.g. RTX 2080 Ti)
 
 global_encoder:
   __target__: michelangelo_encoder
@@ -46,7 +47,7 @@ global_encoder:
   init_scale: 0.25
   qkv_bias: False
   use_checkpoint: False
-  flash: True
+  flash: False  # required for pre-Ampere GPUs
   supervision_type: sdf
   query_method: False
   token_num: 1024
