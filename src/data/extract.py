@@ -251,24 +251,28 @@ def process_mesh(arranged_bones=None):
                 correct_faces.append(face)
             else:
                 correct_faces.append((face[0], face[2], face[1]))
-        if len(correct_faces) > 0:
-            _dict_mesh[obj.name] = {
-                'vertex': vertex,
-                'face': correct_faces,
+        # Keep point-only meshes (e.g. 3DGS PLY) instead of dropping them.
+        _dict_mesh[obj.name] = {
+            'vertex': vertex,
+            'vertex_normal': vertex_normal,
+            'face': correct_faces,
+        }
+        if skin_weight is not None:
+            _dict_skin[obj.name] = {
+                'skin': skin_weight,
             }
-            if skin_weight is not None:
-                _dict_skin[obj.name] = {
-                    'skin': skin_weight,
-                }
-    
+
     if len(_dict_mesh) == 0:
         raise ValueError(
-            "no valid mesh faces found after import. "
-            "This input is likely a point cloud PLY or an empty mesh. "
-            "Please provide a surface mesh with polygon faces (e.g. OBJ/GLB/FBX, or a meshed PLY)."
+            "no valid mesh objects found after import. Please check the input file content."
         )
 
-    vertex = np.concatenate([_dict_mesh[name]['vertex'] for name in _dict_mesh], axis=1)[:3, :].transpose()
+    vertex = np.concatenate(
+        [_dict_mesh[name]['vertex'] for name in _dict_mesh], axis=1
+    )[:3, :].transpose()
+    vertex_normals = np.concatenate(
+        [_dict_mesh[name]['vertex_normal'] for name in _dict_mesh], axis=0
+    )
     
     total_faces = 0
     now_bias = 0
@@ -278,7 +282,8 @@ def process_mesh(arranged_bones=None):
     tot = 0
     for name in _dict_mesh:
         f = np.array(_dict_mesh[name]['face'], dtype=np.int64)
-        faces[tot:tot+f.shape[0]] = f + now_bias
+        if f.shape[0] > 0:
+            faces[tot:tot+f.shape[0]] = f + now_bias
         now_bias += _dict_mesh[name]['vertex'].shape[1]
         tot += f.shape[0]
 
@@ -288,7 +293,7 @@ def process_mesh(arranged_bones=None):
             _dict_skin[d]['skin'] for d in _dict_skin
         ], axis=0)
 
-    return vertex, faces, skin
+    return vertex, vertex_normals, faces, skin
 
 def process_armature(
     armature,
@@ -346,6 +351,7 @@ def process_armature(
 def save_raw_data(
     path: str,
     vertices: ndarray,
+    vertex_normals: ndarray,
     faces: ndarray,
     skin: Union[ndarray, None],
     joints: Union[ndarray, None],
@@ -355,27 +361,39 @@ def save_raw_data(
     matrix_local: Union[ndarray, None],
     target_count: int,
 ):
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-    vertices = np.array(mesh.vertices, dtype=np.float32)
-    faces = np.array(mesh.faces, dtype=np.int64)
-    if faces.shape[0] > target_count:
-        vertices, faces = fast_simplification.simplify(vertices, faces, target_count=target_count)
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-    
-    new_vertices = np.array(mesh.vertices, dtype=np.float32)
-    new_vertex_normals = np.array(mesh.vertex_normals, dtype=np.float32)
-    new_faces = np.array(mesh.faces, dtype=np.int64)
-    new_face_normals = np.array(mesh.face_normals, dtype=np.float32)
+    faces = np.array(faces, dtype=np.int64)
+    if faces.shape[0] == 0:
+        # Point-only inputs (e.g. 3DGS PLY) do not have surface triangles.
+        new_vertices = np.array(vertices, dtype=np.float32)
+        if vertex_normals is None or vertex_normals.shape[0] != new_vertices.shape[0]:
+            new_vertex_normals = np.zeros_like(new_vertices, dtype=np.float32)
+        else:
+            new_vertex_normals = np.array(vertex_normals, dtype=np.float32)
+        new_faces = np.zeros((0, 3), dtype=np.int64)
+        new_face_normals = np.zeros((0, 3), dtype=np.float32)
+    else:
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+        vertices = np.array(mesh.vertices, dtype=np.float32)
+        faces = np.array(mesh.faces, dtype=np.int64)
+        if faces.shape[0] > target_count:
+            vertices, faces = fast_simplification.simplify(vertices, faces, target_count=target_count)
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+        
+        new_vertices = np.array(mesh.vertices, dtype=np.float32)
+        new_vertex_normals = np.array(mesh.vertex_normals, dtype=np.float32)
+        new_faces = np.array(mesh.faces, dtype=np.int64)
+        new_face_normals = np.array(mesh.face_normals, dtype=np.float32)
     if joints is not None:
         new_joints = np.array(joints, dtype=np.float32)
     else:
         new_joints = None
     if skin is not None:
         new_skin = np.array(skin, dtype=np.float32)
-        # sample nearest
-        tree = KDTree(vertices)
-        distances, indices = tree.query(new_vertices)
-        new_skin = new_skin[indices]
+        # sample nearest only when remeshing changed vertex count
+        if faces.shape[0] > 0:
+            tree = KDTree(vertices)
+            distances, indices = tree.query(new_vertices)
+            new_skin = new_skin[indices]
     else:
         new_skin = None
     
@@ -435,7 +453,7 @@ def extract_builtin(
                 arranged_bones = get_arranged_bones(armature)
             else:
                 arranged_bones = None
-            vertices, faces, skin = process_mesh(arranged_bones)
+            vertices, vertex_normals, faces, skin = process_mesh(arranged_bones)
             
             if armature is not None:
                 joints, tails, parents, names, matrix_local = process_armature(armature, arranged_bones)
@@ -450,6 +468,7 @@ def extract_builtin(
             save_raw_data(
                 path=save_file,
                 vertices=vertices,
+                vertex_normals=vertex_normals,
                 faces=faces-1,
                 skin=skin,
                 joints=joints,

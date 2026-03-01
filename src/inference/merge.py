@@ -443,7 +443,7 @@ def transfer(source: str, target: str, output: str, add_root: bool=False):
         print(f"failed to load {source}")
         return
 
-    vertices, faces, skin = process_mesh()
+    vertices, _, faces, skin = process_mesh()
     arranged_bones = get_arranged_bones(armature)
     if skin is None:
         skin = get_skin(arranged_bones)

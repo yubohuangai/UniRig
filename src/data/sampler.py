@@ -121,6 +121,10 @@ class SamplerMix(Sampler):
         self,
         asset: Asset,
     ) -> SamplerResult:
+        if asset.faces is None or asset.faces.shape[0] == 0:
+            # 3DGS/point-cloud style inputs have no triangles to sample on.
+            return self._sample_vertices_only(asset=asset)
+
         # 1. sample vertices
         num_samples = self.num_samples
         perm = np.random.permutation(asset.vertices.shape[0])
@@ -155,6 +159,22 @@ class SamplerMix(Sampler):
             normals=normal_samples,
             vertex_groups=vertex_group_samples,
         )
+
+    def _sample_vertices_only(self, asset: Asset) -> SamplerResult:
+        num_samples = self.num_samples
+        if num_samples < 0:
+            num_samples = asset.vertices.shape[0]
+        if asset.vertices.shape[0] == 0:
+            raise ValueError("input contains no vertices")
+        perm = np.random.permutation(asset.vertices.shape[0])
+        if asset.vertices.shape[0] < num_samples:
+            pad = np.random.randint(0, asset.vertices.shape[0], (num_samples - asset.vertices.shape[0],))
+            perm = np.concatenate([perm, pad], axis=0)
+        perm = perm[:num_samples]
+        n_v = asset.vertices[perm]
+        n_n = asset.vertex_normals[perm]
+        n_vg = {name: v[perm] for name, v in asset.vertex_groups.items()}
+        return SamplerResult(vertices=n_v, normals=n_n, vertex_groups=n_vg)
 
 def sample_surface(
     num_samples: int,
