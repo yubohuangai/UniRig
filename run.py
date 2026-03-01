@@ -25,14 +25,6 @@ from src.system.parse import get_system, get_writer
 from tqdm import tqdm
 import time
 
-# PyTorch 2.6+ defaults to weights_only=True for torch.load.
-# UniRig checkpoints may contain Box objects in saved hyperparameters.
-try:
-    torch.serialization.add_safe_globals([Box])
-except Exception:
-    # Older torch versions may not expose this API; keep backward compatibility.
-    pass
-
 def load(task: str, path: str) -> Box:
     if path.endswith('.yaml'):
         path = path.removesuffix('.yaml')
