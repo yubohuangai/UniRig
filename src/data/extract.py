@@ -261,6 +261,13 @@ def process_mesh(arranged_bones=None):
                     'skin': skin_weight,
                 }
     
+    if len(_dict_mesh) == 0:
+        raise ValueError(
+            "no valid mesh faces found after import. "
+            "This input is likely a point cloud PLY or an empty mesh. "
+            "Please provide a surface mesh with polygon faces (e.g. OBJ/GLB/FBX, or a meshed PLY)."
+        )
+
     vertex = np.concatenate([_dict_mesh[name]['vertex'] for name in _dict_mesh], axis=1)[:3, :].transpose()
     
     total_faces = 0
