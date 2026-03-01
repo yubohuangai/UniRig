@@ -1,6 +1,6 @@
 # generate skeleton
 config="configs/data/quick_inference.yaml"
-require_suffix="obj,fbx,FBX,dae,glb,gltf,vrm"
+require_suffix="obj,fbx,FBX,dae,glb,gltf,vrm,ply,PLY"
 num_runs=1
 force_override="false"
 faces_target_count=50000

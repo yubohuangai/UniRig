@@ -57,8 +57,10 @@ def load(filepath: str, return_armature: bool=False):
 
     if not os.path.exists(filepath):
         raise ValueError(f'File {filepath} does not exist !')
+    filepath_lower = filepath.lower()
+
     try:
-        if filepath.endswith(".vrm"):
+        if filepath_lower.endswith(".vrm"):
             # enable vrm addon and load vrm model
             bpy.ops.preferences.addon_enable(module='vrm')
             
@@ -74,15 +76,21 @@ def load(filepath: str, return_armature: bool=False):
                 set_armature_bone_shape_to_default=True,
                 disable_bake=True, # customized option for better performance
             )
-        elif filepath.endswith(".obj"):
+        elif filepath_lower.endswith(".obj"):
             bpy.ops.wm.obj_import(filepath=filepath)
-        elif filepath.endswith(".fbx") or filepath.endswith(".FBX"):
+        elif filepath_lower.endswith(".fbx"):
             bpy.ops.import_scene.fbx(filepath=filepath, ignore_leaf_bones=False, use_image_search=False)
-        elif filepath.endswith(".glb") or filepath.endswith(".gltf"):
+        elif filepath_lower.endswith(".glb") or filepath_lower.endswith(".gltf"):
             bpy.ops.import_scene.gltf(filepath=filepath, import_pack_images=False)
-        elif filepath.endswith(".dae"):
+        elif filepath_lower.endswith(".dae"):
             bpy.ops.wm.collada_import(filepath=filepath)
-        elif filepath.endswith(".blend"):
+        elif filepath_lower.endswith(".ply"):
+            # Blender operator name changed across versions.
+            if hasattr(bpy.ops.wm, "ply_import"):
+                bpy.ops.wm.ply_import(filepath=filepath)
+            else:
+                bpy.ops.import_mesh.ply(filepath=filepath)
+        elif filepath_lower.endswith(".blend"):
             with bpy.data.libraries.load(filepath) as (data_from, data_to):
                 data_to.objects = data_from.objects
             for obj in data_to.objects:

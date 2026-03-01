@@ -1,5 +1,5 @@
 # merge texture
-require_suffix="obj,fbx,FBX,dae,glb,gltf,vrm"
+require_suffix="obj,fbx,FBX,dae,glb,gltf,vrm,ply,PLY"
 source=""
 target=""
 output=""
